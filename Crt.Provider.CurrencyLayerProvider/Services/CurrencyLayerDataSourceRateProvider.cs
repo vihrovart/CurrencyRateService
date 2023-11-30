@@ -15,12 +15,13 @@ public class CurrencyLayerDataSourceRateProvider : IDataSourceRateProvider
 {
     private readonly IHttpClientFactory httpClientFactory;
     private readonly ProviderSettings settings;
+    private readonly string key;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CurrencyLayerDataSourceRateProvider"/> class.
     /// </summary>
     /// <param name="httpClientFactory">Фабрика http клиента.</param>
-    /// <param name="settingsProvider">Поставщик ключей.</param>
+    /// <param name="settingsProvider">Поставщик настроек.</param>
     public CurrencyLayerDataSourceRateProvider(
         IHttpClientFactory httpClientFactory,
         ISettingsProvider settingsProvider)
@@ -28,6 +29,13 @@ public class CurrencyLayerDataSourceRateProvider : IDataSourceRateProvider
         this.httpClientFactory = httpClientFactory;
 
         this.settings = settingsProvider.TryGetSettings(this.DataSourceName) ?? throw new CrtException(ProviderConstant.Exceptions.ExceptionNoSettingsForProvider);
+
+        if (!File.Exists(this.settings.KeyFile))
+        {
+            throw new CrtException(ProviderConstant.Exceptions.ExceptionKeyFileNotFound);
+        }
+
+        this.key = File.ReadAllText(this.settings.KeyFile);
     }
 
     /// <inheritdoc/>
@@ -48,7 +56,7 @@ public class CurrencyLayerDataSourceRateProvider : IDataSourceRateProvider
         var url = string.Format(
             CultureInfo.CurrentCulture,
             ProviderConstant.Urls.TimeFrame,
-            this.settings.Key,
+            this.key,
             startDateParameter,
             endDateParameter,
             currency);

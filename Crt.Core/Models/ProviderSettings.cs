@@ -21,7 +21,7 @@ public class ProviderSettings
     public int MaxDateDifference { get; set; }
 
     /// <summary>
-    /// Ключ.
+    /// Файл ключа.
     /// </summary>
-    public string Key { get; set; }
+    public string KeyFile { get; set; }
 }
