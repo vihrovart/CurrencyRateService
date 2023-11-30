@@ -1,14 +1,16 @@
 namespace Crt.Core.Services;
 
+using Crt.Core.Models;
+
 /// <summary>
 /// Поставщик ключей.
 /// </summary>
-public interface IKeysProvider
+public interface ISettingsProvider
 {
     /// <summary>
-    /// Получить ключ.
+    /// Получить настройки провайдера.
     /// </summary>
     /// <param name="dataSource">Источник данных.</param>
     /// <returns>Ключ.</returns>
-    public string TryGetKey(string dataSource);
+    public ProviderSettings? TryGetSettings(string dataSource);
 }

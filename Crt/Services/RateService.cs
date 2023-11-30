@@ -23,29 +23,31 @@ public class RateService : IRateProvider
     }
 
     /// <inheritdoc/>
-    public Task<RateValue[]> GetTimeFrameRates(DateTime startDate, DateTime endDate, string currency)
+    public async Task<RateValue[]> GetTimeFrameRates(DateTime startDate, DateTime endDate, string currency)
     {
-        foreach (var providerItem in this.providers)
+        var result = await this.ExecuteRequest(async x =>
         {
-            try
+            var dateDifference = (endDate - startDate).Days + 1;
+
+            var result = new List<RateValue>();
+
+            var dates = Enumerable.Range(0, dateDifference).Select(x => startDate.AddDays(x)).ToArray();
+
+            for (var i = 0; i < dates.Length; i += x.MaxDateDifference)
             {
-                var result =
-                    ExecuteProviderRequest(providerItem, x => x.GetTimeFrameRates(startDate, endDate, currency));
+                var range = dates.Skip(i).Take(x.MaxDateDifference).ToArray();
 
-                providerItem.LastRequestSuccess = true;
-                providerItem.LastRequestDate = DateTime.Now.Date;
+                var from = range.First();
+                var to = range.Last();
 
-                return result;
+                var requestResult = await x.GetTimeFrameRates(from, to, currency);
+                result.AddRange(requestResult);
             }
-            catch (Exception ex)
-            {
-                providerItem.LastException = ex;
-                providerItem.LastRequestDate = DateTime.Now.Date;
-                providerItem.LastRequestSuccess = false;
-            }
-        }
 
-        throw new CrtException(CrtConstant.Exceptions.AllProvidersCantExecuteRequest);
+            return result.ToArray();
+        });
+
+        return result ?? Array.Empty<RateValue>();
     }
 
     /// <inheritdoc/>
@@ -64,5 +66,40 @@ public class RateService : IRateProvider
         providerItem.RequestCount++;
 
         return requestFunc(providerItem.Provider);
+    }
+
+    private async Task<T?> ExecuteRequest<T>(Func<IDataSourceRateProvider, Task<T>> requestFunc)
+    {
+        var provider = this.GetAvailableProvider();
+
+        if (provider == null)
+        {
+            throw new CrtException(CrtConstant.Exceptions.AllProvidersCantExecuteRequest);
+        }
+
+        T? result = default;
+
+        try
+        {
+            result = await ExecuteProviderRequest(provider, requestFunc);
+
+            provider.LastRequestSuccess = true;
+            provider.LastRequestDate = DateTime.Now.Date;
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            provider.LastException = ex;
+            provider.LastRequestDate = DateTime.Now.Date;
+            provider.LastRequestSuccess = false;
+        }
+
+        return result;
+    }
+
+    private RateProviderItem? GetAvailableProvider()
+    {
+        return this.providers.FirstOrDefault(x => x.Provider.DayRequestCount > x.RequestCount);
     }
 }

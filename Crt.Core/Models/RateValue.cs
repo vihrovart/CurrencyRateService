@@ -18,6 +18,11 @@ public class RateValue
     public string Currency { get; set; }
 
     /// <summary>
+    /// Значение пары валют.
+    /// </summary>
+    public string CurrencyPairValue { get; set; }
+
+    /// <summary>
     /// Дата.
     /// </summary>
     public DateTime Date { get; set; }

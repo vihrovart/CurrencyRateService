@@ -34,7 +34,7 @@ internal static class ProviderConstant
     public static class Exceptions
     {
 #pragma warning disable SA1600
-        public const string ExceptionCantGetApiKey = "Can't get api key";
+        public const string ExceptionNoSettingsForProvider = "No settings for provider";
         public const string ExceptionRequestExecutionError = "Request execution error";
         public const string ExceptionResponseParseError = "Response parse error";
         public const string ExceptionRequestError = "Request error: {0} - {1}";

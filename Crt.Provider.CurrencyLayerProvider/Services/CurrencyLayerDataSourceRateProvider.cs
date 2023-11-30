@@ -14,28 +14,30 @@ using Newtonsoft.Json;
 public class CurrencyLayerDataSourceRateProvider : IDataSourceRateProvider
 {
     private readonly IHttpClientFactory httpClientFactory;
-    private readonly string key;
+    private readonly ProviderSettings settings;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CurrencyLayerDataSourceRateProvider"/> class.
     /// </summary>
     /// <param name="httpClientFactory">Фабрика http клиента.</param>
-    /// <param name="keysProvider">Поставщик ключей.</param>
+    /// <param name="settingsProvider">Поставщик ключей.</param>
     public CurrencyLayerDataSourceRateProvider(
         IHttpClientFactory httpClientFactory,
-        IKeysProvider keysProvider)
+        ISettingsProvider settingsProvider)
     {
         this.httpClientFactory = httpClientFactory;
-        this.key = keysProvider.TryGetKey(this.DataSourceName);
 
-        if (string.IsNullOrEmpty(this.key))
-        {
-            throw new CrtException(ProviderConstant.Exceptions.ExceptionCantGetApiKey);
-        }
+        this.settings = settingsProvider.TryGetSettings(this.DataSourceName) ?? throw new CrtException(ProviderConstant.Exceptions.ExceptionNoSettingsForProvider);
     }
 
     /// <inheritdoc/>
     public string DataSourceName => "CurrencyLayer";
+
+    /// <inheritdoc/>
+    public int MaxDateDifference => this.settings.MaxDateDifference;
+
+    /// <inheritdoc/>
+    public int DayRequestCount => this.settings.DayRequestCount;
 
     /// <inheritdoc/>
     public async Task<RateValue[]> GetTimeFrameRates(DateTime startDate, DateTime endDate, string currency)
@@ -46,7 +48,7 @@ public class CurrencyLayerDataSourceRateProvider : IDataSourceRateProvider
         var url = string.Format(
             CultureInfo.CurrentCulture,
             ProviderConstant.Urls.TimeFrame,
-            this.key,
+            this.settings.Key,
             startDateParameter,
             endDateParameter,
             currency);
@@ -100,6 +102,7 @@ public class CurrencyLayerDataSourceRateProvider : IDataSourceRateProvider
                         DataSource = this.DataSourceName,
                         Date = x.Key,
                         Currency = valueCurrency,
+                        CurrencyPairValue = y.Key,
                         Value = y.Value,
                     };
                 }));
