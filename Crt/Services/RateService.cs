@@ -53,6 +53,8 @@ public class RateService : IRateProvider
                 result.AddRange(requestResult);
             }
 
+            FillSelfCurrencyRate(result, x);
+
             return result.ToArray();
         });
 
@@ -64,12 +66,36 @@ public class RateService : IRateProvider
     {
         var result = await this.ExecuteRequest(async x =>
         {
-            var result = await x.GetCurrentValue(currency);
+            var result = (await x.GetCurrentValue(currency)).ToList();
+
+            FillSelfCurrencyRate(result, x);
 
             return result.ToArray();
         });
 
         return result ?? Array.Empty<RateValue>();
+    }
+
+    private static void FillSelfCurrencyRate(List<RateValue> rates, IDataSourceRateProvider provider)
+    {
+        var dateGroups = rates.GroupBy(x => x.Date);
+
+        foreach (var dateGroup in dateGroups)
+        {
+            var currencyGroups = dateGroup.GroupBy(x => x.SourceCurrency);
+
+            rates.AddRange(from currencyGroup in currencyGroups
+            where !currencyGroup.Any(x => x.Currency == currencyGroup.Key && x.Date == dateGroup.Key)
+            select new RateValue()
+            {
+                Currency = currencyGroup.Key,
+                SourceCurrency = currencyGroup.Key,
+                Date = dateGroup.Key,
+                Value = 1,
+                DataSource = provider.DataSourceName,
+                CurrencyPairValue = $"{currencyGroup.Key}{currencyGroup.Key}",
+            });
+        }
     }
 
     private static Task<T> ExecuteProviderRequest<T>(RateProviderItem providerItem, Func<IDataSourceRateProvider, Task<T>> requestFunc)
