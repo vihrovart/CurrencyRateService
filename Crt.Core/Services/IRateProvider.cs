@@ -23,5 +23,5 @@ public interface IRateProvider
     /// </summary>
     /// <param name="currency">Валюта.</param>
     /// <returns>Значения курсов.</returns>
-    public RateValue[] GetCurrentValue(string currency);
+    public Task<RateValue[]> GetCurrentValue(string currency);
 }

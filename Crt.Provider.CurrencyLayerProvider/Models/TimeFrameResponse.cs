@@ -23,4 +23,9 @@ internal class TimeFrameResponse : BaseQuoteResponse
     /// </summary>
     [JsonProperty("end_date")]
     public DateTime EndDate { get; set; }
+
+    /// <summary>
+    /// Курсы валют.
+    /// </summary>
+    public Dictionary<DateTime, Dictionary<string, decimal>> Quotes { get; set; }
 }

@@ -5,20 +5,29 @@ using Crt.Core.Models;
 using Crt.Core.Services;
 using Crt.Models;
 using Crt.Constant;
+using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// Сервис курсов.
 /// </summary>
 public class RateService : IRateProvider
 {
+    private const int RepeatCount = 3;
+    private const int RepeatIntervalMilliseconds = 500;
+
+    private readonly ILogger<RateService> logger;
     private readonly RateProviderItem[] providers;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RateService"/> class.
     /// </summary>
     /// <param name="providers">Провайдеры курсов валют.</param>
-    public RateService(IEnumerable<IDataSourceRateProvider> providers)
+    /// <param name="logger">Логгер.</param>
+    public RateService(
+        IEnumerable<IDataSourceRateProvider> providers,
+        ILogger<RateService> logger)
     {
+        this.logger = logger;
         this.providers = providers.Select(x => new RateProviderItem(x)).ToArray();
     }
 
@@ -51,14 +60,21 @@ public class RateService : IRateProvider
     }
 
     /// <inheritdoc/>
-    public RateValue[] GetCurrentValue(string currency)
+    public async Task<RateValue[]> GetCurrentValue(string currency)
     {
-        throw new NotImplementedException();
+        var result = await this.ExecuteRequest(async x =>
+        {
+            var result = await x.GetCurrentValue(currency);
+
+            return result.ToArray();
+        });
+
+        return result ?? Array.Empty<RateValue>();
     }
 
     private static Task<T> ExecuteProviderRequest<T>(RateProviderItem providerItem, Func<IDataSourceRateProvider, Task<T>> requestFunc)
     {
-        if (providerItem.LastRequestDate?.Date < DateTime.Now)
+        if (providerItem.LastRequestDate?.Date < DateTime.Now.Date)
         {
             providerItem.RequestCount = 0;
         }
@@ -68,38 +84,62 @@ public class RateService : IRateProvider
         return requestFunc(providerItem.Provider);
     }
 
-    private async Task<T?> ExecuteRequest<T>(Func<IDataSourceRateProvider, Task<T>> requestFunc)
+    private Task<T?> ExecuteRequest<T>(Func<IDataSourceRateProvider, Task<T>> requestFunc, int repeat = 0)
     {
         var provider = this.GetAvailableProvider();
+
+        lock (provider)
+        {
+            var requestNumber = provider.RequestCount + 1;
+
+            this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{requestNumber}/{provider.Provider.DayRequestCount}.");
+            try
+            {
+                var result = ExecuteProviderRequest(provider, requestFunc).ConfigureAwait(false).GetAwaiter().GetResult();
+
+                provider.LastRequestSuccess = true;
+                provider.LastRequestDate = DateTime.Now.Date;
+
+                this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{requestNumber}/{provider.Provider.DayRequestCount} - success.");
+
+                return Task.FromResult(result);
+            }
+            catch (Exception ex)
+            {
+                provider.LastException = ex;
+                provider.LastRequestDate = DateTime.Now.Date;
+                provider.LastRequestSuccess = false;
+
+                this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{provider.RequestCount} - fail.");
+
+                if (repeat < RepeatCount)
+                {
+                    this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{provider.RequestCount} - try repeat #{repeat + 1}.");
+
+                    Thread.Sleep(new TimeSpan(0, 0, 0, 0, RepeatIntervalMilliseconds));
+
+                    return this.ExecuteRequest(requestFunc, repeat + 1);
+                }
+
+                throw;
+            }
+        }
+    }
+
+    private RateProviderItem GetAvailableProvider()
+    {
+        var provider = this.providers.FirstOrDefault(x => x.Provider.DayRequestCount > x.RequestCount && x.LastRequestSuccess);
+
+        if (provider == null)
+        {
+            provider = this.providers.FirstOrDefault(x => x.Provider.DayRequestCount > x.RequestCount);
+        }
 
         if (provider == null)
         {
             throw new CrtException(CrtConstant.Exceptions.AllProvidersCantExecuteRequest);
         }
 
-        T? result = default;
-
-        try
-        {
-            result = await ExecuteProviderRequest(provider, requestFunc);
-
-            provider.LastRequestSuccess = true;
-            provider.LastRequestDate = DateTime.Now.Date;
-
-            return result;
-        }
-        catch (Exception ex)
-        {
-            provider.LastException = ex;
-            provider.LastRequestDate = DateTime.Now.Date;
-            provider.LastRequestSuccess = false;
-        }
-
-        return result;
-    }
-
-    private RateProviderItem? GetAvailableProvider()
-    {
-        return this.providers.FirstOrDefault(x => x.Provider.DayRequestCount > x.RequestCount);
+        return provider;
     }
 }

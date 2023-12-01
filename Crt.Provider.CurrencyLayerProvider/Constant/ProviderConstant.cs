@@ -26,6 +26,14 @@ internal static class ProviderConstant
         /// </summary>
         public const string TimeFrame =
             $"http://{SiteUrl}/timeframe?access_key={{0}}&start_date={{1}}&end_date={{2}}&source={{3}}";
+
+        /// <summary>
+        /// Текущее значение.
+        /// 0 - ключ.
+        /// 1 - валюта.
+        /// </summary>
+        public const string Live =
+            $"http://{SiteUrl}/live?access_key={{0}}&source={{1}}";
     }
 
     /// <summary>

@@ -9,9 +9,4 @@ internal class BaseQuoteResponse : BaseResponse
     /// Исходная валюта.
     /// </summary>
     public string Source { get; set; }
-
-    /// <summary>
-    /// Курсы валют.
-    /// </summary>
-    public Dictionary<DateTime, Dictionary<string, decimal>> Quotes { get; set; }
 }
