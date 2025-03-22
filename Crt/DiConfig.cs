@@ -22,6 +22,7 @@ public static class DiConfig
         return services
             .Configure<ProvidersSettings>(configuration.GetSection(nameof(ProvidersSettings)))
             .AddSingleton<ISettingsProvider, SettingsProvider>()
-            .AddSingleton<RateService>();
+            .AddSingleton<RateService>()
+            .AddSingleton<ProviderPeriodService>();
     }
 }

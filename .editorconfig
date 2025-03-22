@@ -1012,7 +1012,7 @@ dotnet_diagnostic.CA1301.severity = error
 
 dotnet_diagnostic.CA1302.severity = error
 
-dotnet_diagnostic.CA1303.severity = error
+dotnet_diagnostic.CA1303.severity = warning
 
 dotnet_diagnostic.CA1304.severity = warning
 
@@ -1894,7 +1894,7 @@ dotnet_diagnostic.SA1008.severity = error
 
 dotnet_diagnostic.SA1009.severity = error
 
-dotnet_diagnostic.SA1010.severity = error
+dotnet_diagnostic.SA1010.severity = suggestion
 
 dotnet_diagnostic.SA1012.severity = error
 

@@ -11,9 +11,19 @@ public class ProviderSettings
     public string ProviderName { get; set; }
 
     /// <summary>
+    /// Название ноды провайдера.
+    /// </summary>
+    public string NodeName { get; set; }
+
+    /// <summary>
     /// Допустимое количество запросов в сутки.
     /// </summary>
     public int DayRequestCount { get; set; }
+
+    /// <summary>
+    /// Допустимое количество запросов в сутки.
+    /// </summary>
+    public int MonthRequestCount { get; set; }
 
     /// <summary>
     /// Максимальное количество дней между датами в запросе.

@@ -15,20 +15,26 @@ public class RateService : IRateProvider
     private const int RepeatCount = 3;
     private const int RepeatIntervalMilliseconds = 500;
 
+    private readonly ProviderPeriodService providerPeriodService;
     private readonly ILogger<RateService> logger;
     private readonly RateProviderItem[] providers;
+
+    private int lastUserProviderIndex = -1;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="RateService"/> class.
     /// </summary>
+    /// <param name="providerPeriodService">Сервис для отслеживания количества запросов.</param>
     /// <param name="providers">Провайдеры курсов валют.</param>
     /// <param name="logger">Логгер.</param>
     public RateService(
+        ProviderPeriodService providerPeriodService,
         IEnumerable<IDataSourceRateProvider> providers,
         ILogger<RateService> logger)
     {
+        this.providerPeriodService = providerPeriodService;
         this.logger = logger;
-        this.providers = providers.Select(x => new RateProviderItem(x)).ToArray();
+        this.providers = providers.Select((x, i) => new RateProviderItem(x, i)).ToArray();
     }
 
     /// <inheritdoc/>
@@ -73,7 +79,7 @@ public class RateService : IRateProvider
             return result.ToArray();
         });
 
-        return result ?? Array.Empty<RateValue>();
+        return result ?? [];
     }
 
     private static void FillSelfCurrencyRate(List<RateValue> rates, IDataSourceRateProvider provider)
@@ -100,13 +106,6 @@ public class RateService : IRateProvider
 
     private static Task<T> ExecuteProviderRequest<T>(RateProviderItem providerItem, Func<IDataSourceRateProvider, Task<T>> requestFunc)
     {
-        if (providerItem.LastRequestDate?.Date < DateTime.Now.Date)
-        {
-            providerItem.RequestCount = 0;
-        }
-
-        providerItem.RequestCount++;
-
         return requestFunc(providerItem.Provider);
     }
 
@@ -116,9 +115,12 @@ public class RateService : IRateProvider
 
         lock (provider)
         {
-            var requestNumber = provider.RequestCount + 1;
+            var stat = this.providerPeriodService.GetStats(provider.Provider.DataSourceNodeName);
+            var requestMonthNumber = stat.MonthCount + 1;
+            var requestDayNumber = stat.DayCount + 1;
+            var requestNumberString = $"D:{requestDayNumber}/{provider.Provider.DayRequestCount} M:{requestMonthNumber}/{provider.Provider.MonthRequestCount}";
 
-            this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{requestNumber}/{provider.Provider.DayRequestCount}.");
+            this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{requestNumberString}.");
             try
             {
                 var result = ExecuteProviderRequest(provider, requestFunc).ConfigureAwait(false).GetAwaiter().GetResult();
@@ -126,7 +128,7 @@ public class RateService : IRateProvider
                 provider.LastRequestSuccess = true;
                 provider.LastRequestDate = DateTime.Now.Date;
 
-                this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{requestNumber}/{provider.Provider.DayRequestCount} - success.");
+                this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{requestNumberString} - success.");
 
                 return Task.FromResult(result);
             }
@@ -136,11 +138,11 @@ public class RateService : IRateProvider
                 provider.LastRequestDate = DateTime.Now.Date;
                 provider.LastRequestSuccess = false;
 
-                this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{provider.RequestCount} - fail.");
+                this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{requestNumberString} - fail.");
 
                 if (repeat < RepeatCount)
                 {
-                    this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{provider.RequestCount} - try repeat #{repeat + 1}.");
+                    this.logger.LogDebug($"{provider.Provider.DataSourceName} provider, request #{requestNumberString} - try repeat #{repeat + 1}.");
 
                     Thread.Sleep(new TimeSpan(0, 0, 0, 0, RepeatIntervalMilliseconds));
 
@@ -154,15 +156,51 @@ public class RateService : IRateProvider
 
     private RateProviderItem GetAvailableProvider()
     {
-        var provider = this.providers.FirstOrDefault(x => x.Provider.DayRequestCount > x.RequestCount && x.LastRequestSuccess);
-
-        if (provider == null)
+        //// Если последний работоспособный то его беру.
+        if (this.lastUserProviderIndex > -1
+            && this.providerPeriodService
+                .GetStats(this.providers[this.lastUserProviderIndex].Provider.DataSourceNodeName).WasLastSuccessful)
         {
-            provider = this.providers.FirstOrDefault(x => x.Provider.DayRequestCount > x.RequestCount);
+            return this.providers[this.lastUserProviderIndex];
         }
 
+        //// Пытаюсь найти работоспособный.
+
+        //// Ищу не последний, но без ошибок.
+        var provider = this.providers.FirstOrDefault(x =>
+        {
+            var stat = this.providerPeriodService.GetStats(x.Provider.DataSourceNodeName);
+            return x.Index > this.lastUserProviderIndex
+                   && (x.Provider.DayRequestCount <= 0 || x.Provider.DayRequestCount > stat.DayCount)
+                   && (x.Provider.MonthRequestCount <= 0 || x.Provider.MonthRequestCount > stat.MonthCount)
+                   && stat.WasLastSuccessful;
+        });
+
+        if (provider != null)
+        {
+            this.lastUserProviderIndex = provider.Index;
+            return provider;
+        }
+
+        //// Ищу не последний, но можно и с ошибками.
+        provider = this.providers.FirstOrDefault(x =>
+        {
+            var stat = this.providerPeriodService.GetStats(x.Provider.DataSourceNodeName);
+            return x.Index > this.lastUserProviderIndex
+                   && (x.Provider.DayRequestCount <= 0 || x.Provider.DayRequestCount > stat.DayCount)
+                   && (x.Provider.MonthRequestCount <= 0 || x.Provider.MonthRequestCount > stat.MonthCount);
+        });
+
+        if (provider != null)
+        {
+            this.lastUserProviderIndex = provider.Index;
+            return provider;
+        }
+
+        //// Если и такой не найден, то возвращаюсь к началу списка.
         if (provider == null)
         {
+            this.lastUserProviderIndex = -1;
             throw new CrtException(CrtConstant.Exceptions.AllProvidersCantExecuteRequest);
         }
 

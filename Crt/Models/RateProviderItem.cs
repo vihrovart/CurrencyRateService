@@ -12,10 +12,17 @@ internal class RateProviderItem
     /// Initializes a new instance of the <see cref="RateProviderItem"/> class.
     /// </summary>
     /// <param name="provider">Провайдер курсов валют.</param>
-    public RateProviderItem(IDataSourceRateProvider provider)
+    /// <param name="index">Индекс.</param>
+    public RateProviderItem(IDataSourceRateProvider provider, int index)
     {
         this.Provider = provider;
+        this.Index = index;
     }
+
+    /// <summary>
+    /// Индекс.
+    /// </summary>
+    public int Index { get; set; }
 
     /// <summary>
     /// Поставщик данных.
@@ -26,11 +33,6 @@ internal class RateProviderItem
     /// Последний запрос выполнен с успехом.
     /// </summary>
     public bool LastRequestSuccess { get; set; }
-
-    /// <summary>
-    /// Количество выполненных запросов.
-    /// </summary>
-    public int RequestCount { get; set; }
 
     /// <summary>
     /// Дата последнего запроса.

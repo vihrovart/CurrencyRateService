@@ -14,6 +14,7 @@ using Newtonsoft.Json;
 /// </summary>
 public class CurrencyLayerDataSourceRateProvider : IDataSourceRateProvider
 {
+    private readonly ProviderPeriodService providerPeriodService;
     private readonly IHttpClientFactory httpClientFactory;
     private readonly ILogger<CurrencyLayerDataSourceRateProvider> logger;
     private readonly ProviderSettings settings;
@@ -26,15 +27,18 @@ public class CurrencyLayerDataSourceRateProvider : IDataSourceRateProvider
     /// <summary>
     /// Initializes a new instance of the <see cref="CurrencyLayerDataSourceRateProvider"/> class.
     /// </summary>
+    /// <param name="providerPeriodService">Сервис для отслеживания количества запросов.</param>
     /// <param name="httpClientFactory">Фабрика http клиента.</param>
     /// <param name="settingsProvider">Поставщик настроек.</param>
     /// <param name="logger">Логгер.</param>
     public CurrencyLayerDataSourceRateProvider(
+        ProviderPeriodService providerPeriodService,
         IHttpClientFactory httpClientFactory,
         ISettingsProvider settingsProvider,
         ILogger<CurrencyLayerDataSourceRateProvider> logger)
     {
         this.lastRequestTime = DateTime.Now;
+        this.providerPeriodService = providerPeriodService;
         this.httpClientFactory = httpClientFactory;
         this.logger = logger;
 
@@ -52,10 +56,16 @@ public class CurrencyLayerDataSourceRateProvider : IDataSourceRateProvider
     public string DataSourceName => "CurrencyLayer";
 
     /// <inheritdoc/>
+    public string DataSourceNodeName => this.settings.NodeName;
+
+    /// <inheritdoc/>
     public int MaxDateDifference => this.settings.MaxDateDifference;
 
     /// <inheritdoc/>
     public int DayRequestCount => this.settings.DayRequestCount;
+
+    /// <inheritdoc/>
+    public int MonthRequestCount => this.settings.MonthRequestCount;
 
     /// <inheritdoc/>
     public Task<RateValue[]> GetTimeFrameRates(DateTime startDate, DateTime endDate, string currency)
@@ -156,8 +166,11 @@ public class CurrencyLayerDataSourceRateProvider : IDataSourceRateProvider
             }
 
             response = httpClient.GetAsync(new Uri(url)).ConfigureAwait(false).GetAwaiter().GetResult();
+            this.providerPeriodService.IncrementRequestCount(this.DataSourceNodeName);
 
             this.lastRequestTime = DateTime.Now;
+
+            this.providerPeriodService.SetLastSuccess(this.DataSourceNodeName, false);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -177,6 +190,8 @@ public class CurrencyLayerDataSourceRateProvider : IDataSourceRateProvider
 
         if (responseResult.Success)
         {
+            this.providerPeriodService.SetLastSuccess(this.DataSourceNodeName, true);
+
             return responseResult;
         }
 

@@ -11,6 +11,11 @@ public interface IDataSourceRateProvider : IRateProvider
     public string DataSourceName { get; }
 
     /// <summary>
+    /// Название ноды источника данных.
+    /// </summary>
+    public string DataSourceNodeName { get; }
+
+    /// <summary>
     /// Максимальная разница между датами промежутка.
     /// </summary>
     public int MaxDateDifference { get; }
@@ -19,4 +24,9 @@ public interface IDataSourceRateProvider : IRateProvider
     /// Количество запросов в сутки.
     /// </summary>
     public int DayRequestCount { get; }
+
+    /// <summary>
+    /// Количество запросов в сутки.
+    /// </summary>
+    public int MonthRequestCount { get; }
 }
